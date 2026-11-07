@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.hypothesis/
+.coverage*
+htmlcov/
+*.sqlite*
+*.db*
+*.shelf*
+.ruff_cache/
