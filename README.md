@@ -48,7 +48,7 @@ $task | ConvertTo-Json -Compress | python -m src.calculator
 Запуск из корня репозитория в PowerShell:
 
 ```powershell
-.\run.bat student demo --db variant30.shelf
+.\run.bat student demo --storage file --db variant30.shelf
 ```
 
 Сервер слушает `127.0.0.1:8000`. Порт и адрес задаются через `--port`
@@ -164,3 +164,39 @@ python -m coverage report -m
 проверяет все 11 маршрутов, сверяет записи с независимыми словарями,
 проверяет каскадное удаление, авторизацию и границу отчёта.
 Утилита CLI проверяется отдельно тремя примерами этапа 1.
+
+## Этап 3. SQLite и SQLAlchemy ORM
+
+В итоговой версии SQLite используется по умолчанию. Установи зависимости
+и запусти приложение из корня репозитория:
+
+```powershell
+python -m pip install -r requirements.txt
+.\run.bat student demo
+```
+
+Путь к БД по умолчанию — `variant30.sqlite`. Другой путь можно указать
+через `--db`. Для запуска файлового этапа используется `--storage file`.
+У обоих режимов одинаковые маршруты, форматы XML и API-клиент.
+
+ORM-модели Person, Message и Feedback повторяют поля ER-диаграммы.
+Внешние ключи SQLite обеспечивают каскадное удаление. Обновление
+`Message.done` и запись Feedback фиксируются в одной транзакции.
+Отчёт выполняется одним запросом с `JOIN`, фильтром времени и `DISTINCT`.
+
+Для SQLite используется та же модель Hypothesis:
+
+```powershell
+python -m pip install -r requirements.txt -r requirements-test.txt
+python -m coverage run --branch --source=src --omit='src/calculator.py,src/storage.py' -m unittest tests.test_sqlite
+python -m coverage report -m
+```
+
+Рядом с папкой репозитория лежат `coverage-file.txt` и
+`coverage-sqlite.txt`. Это отчёты покрытия с измерением ветвей,
+полученные отдельными запусками для двух хранилищ. Строки запуска
+приложения и реального subprocess не входят в сценарии тестового режима.
+
+Справочные материалы: [hashlib.pbkdf2_hmac](https://docs.python.org/3/library/hashlib.html#hashlib.pbkdf2_hmac),
+[SQLAlchemy ORM](https://docs.sqlalchemy.org/en/20/orm/quickstart.html),
+[модельные тесты Hypothesis](https://hypothesis.readthedocs.io/en/latest/stateful.html).

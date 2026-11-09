@@ -206,7 +206,9 @@ def arguments():
     parser.add_argument("password")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--db", default="variant30.shelf")
+    parser.add_argument("--storage", choices=("sqlite", "file"),
+                        default="sqlite")
+    parser.add_argument("--db")
     parser.add_argument("--test-mode", action="store_true")
     args = parser.parse_args()
     if not args.username or ":" in args.username:
@@ -214,9 +216,17 @@ def arguments():
     return args
 
 
+def open_storage(args):
+    if args.storage == "file":
+        return FileStorage(args.db or "variant30.shelf")
+    from .sqlite_storage import SQLiteStorage
+
+    return SQLiteStorage(args.db or "variant30.sqlite")
+
+
 def main():
     args = arguments()
-    storage = FileStorage(args.db)
+    storage = open_storage(args)
     try:
         auth = credentials(args.username, args.password)
         with ApiServer((args.host, args.port), auth, storage,
