@@ -1,6 +1,6 @@
 """SQLite data access with SQLAlchemy ORM."""
 
-from sqlalchemy import ForeignKey, URL, create_engine, event, select
+from sqlalchemy import URL, ForeignKey, create_engine, event, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
@@ -12,8 +12,10 @@ class Base(DeclarativeBase):
     __table_args__ = {"sqlite_autoincrement": True}
 
     def record(self):
-        return {column.key: getattr(self, column.key)
-                for column in self.__table__.columns}
+        return {
+            column.key: getattr(self, column.key)
+            for column in self.__table__.columns
+        }
 
 
 class Person(Base):
@@ -30,7 +32,8 @@ class Message(Base):
     __tablename__ = "message"
     data: Mapped[str]
     person: Mapped[int] = mapped_column(
-        ForeignKey("person.key", ondelete="CASCADE"), index=True,
+        ForeignKey("person.key", ondelete="CASCADE"),
+        index=True,
     )
     tags: Mapped[str]
     done: Mapped[int]
@@ -45,7 +48,8 @@ class Feedback(Base):
     status: Mapped[str]
     failure: Mapped[str]
     message: Mapped[int] = mapped_column(
-        ForeignKey("message.key", ondelete="CASCADE"), index=True,
+        ForeignKey("message.key", ondelete="CASCADE"),
+        index=True,
     )
 
 

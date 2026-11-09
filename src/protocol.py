@@ -2,24 +2,41 @@
 
 from xml.etree import ElementTree as ET
 
-
 INTEGER = {
-    "key", "datetime", "person", "message", "done", "started",
+    "key",
+    "datetime",
+    "person",
+    "message",
+    "done",
+    "started",
 }
 FIELDS = {
     "person": {"key", "datetime", "platform", "user_agent"},
-    "message": {"key", "datetime", "data", "person", "tags", "done",
-                "started"},
-    "feedback": {"key", "datetime", "response", "status", "failure",
-                 "message"},
+    "message": {
+        "key",
+        "datetime",
+        "data",
+        "person",
+        "tags",
+        "done",
+        "started",
+    },
+    "feedback": {
+        "key",
+        "datetime",
+        "response",
+        "status",
+        "failure",
+        "message",
+    },
 }
 CREATE = {
     "person": {"datetime", "platform", "user_agent"},
     "message": {"datetime", "data", "person", "tags"},
 }
 MAX_BODY = 2 * 1024 * 1024
-MIN_INTEGER = -(2 ** 63)
-MAX_INTEGER = 2 ** 63 - 1
+MIN_INTEGER = -(2**63)
+MAX_INTEGER = 2**63 - 1
 
 
 def as_integer(value):

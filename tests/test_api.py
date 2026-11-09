@@ -7,22 +7,26 @@ from threading import Event, Thread
 from time import monotonic, sleep
 from unittest.mock import patch
 
-from hypothesis import settings, strategies as st
+from hypothesis import settings
+from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, rule
 
 from src.client import ApiClient
 from src.server import ApiServer, credentials
 from src.storage import FileStorage
 
-
 NOW = 1_800_000_000
 CUTOFF = NOW - 480
 TEXT = st.text(alphabet="ABCабв<&", min_size=1, max_size=10)
-DATA = st.sampled_from((
-    '{"file_b64":"YWJj","salt_b64":"c2FsdA==","iterations":1}',
-    '{"file_b64":"","salt_b64":"cw==","iterations":2}',
-    "invalid",
-))
+DATA = st.sampled_from(
+    (
+        '{"file_b64":"YWJj","salt_b64":"c2FsdA==","iterations":1}',
+        '{"file_b64":"","salt_b64":"cw==","iterations":2}',
+        "invalid",
+    )
+)
+EXPECTED_FEEDBACK_COUNT = 1
+PENDING_TIMESTAMP = 0
 POLL_TIMEOUT = 3
 POLL_INTERVAL = 0.005
 OK = HTTPStatus.OK
@@ -50,11 +54,14 @@ class ApiModel(RuleBasedStateMachine):
         self.clock = patch("src.server.now", return_value=NOW)
         self.clock.start()
         self.server = ApiServer(
-            ("127.0.0.1", 0), credentials("student", "pass:word"),
-            self.storage, test_mode=True,
+            ("127.0.0.1", 0),
+            credentials("student", "pass:word"),
+            self.storage,
+            test_mode=True,
         )
         self.thread = Thread(
-            target=self.server.serve_forever, kwargs={"poll_interval": 0.01},
+            target=self.server.serve_forever,
+            kwargs={"poll_interval": 0.01},
             daemon=True,
         )
         self.thread.start()
@@ -108,13 +115,21 @@ class ApiModel(RuleBasedStateMachine):
         assert key not in self.messages
         row = dict(values, key=key, tags="", started=NOW, done=NOW)
         self.messages[key] = row
-        self.check_row(result, "message", dict(row, started=0, done=0))
+        self.check_row(
+            result,
+            "message",
+            dict(row, started=PENDING_TIMESTAMP, done=PENDING_TIMESTAMP),
+        )
         root = self.await_feedback(key)
         feedback_key = int(root[0].findtext("key"))
         assert feedback_key not in self.feedback
         self.feedback[feedback_key] = dict(
-            key=feedback_key, message=key, datetime=NOW,
-            response="test-mode", status="success", failure="",
+            key=feedback_key,
+            message=key,
+            datetime=NOW,
+            response="test-mode",
+            status="success",
+            failure="",
         )
         self.check_feedback(key)
         return key
@@ -125,41 +140,53 @@ class ApiModel(RuleBasedStateMachine):
             status, root = self.api.public_api_search_feedback(message)
             assert (status, root.tag) == (OK, "results")
             if len(root):
-                assert len(root) == 1
+                assert len(root) == EXPECTED_FEEDBACK_COUNT
                 return root
             sleep(POLL_INTERVAL)
         raise AssertionError("feedback did not arrive")
 
     def check_feedback(self, message):
-        rows = [row for row in self.feedback.values()
-                if row["message"] == message]
-        result = self.api.public_api_search_feedback(
-            message, status="success"
-        )
+        rows = [
+            row for row in self.feedback.values() if row["message"] == message
+        ]
+        result = self.api.public_api_search_feedback(message, status="success")
         self.check_list(result, rows, item="feedback")
         for row in rows:
-            self.check_row(self.api.public_api_single_feedback(row["key"]),
-                           "feedback", row)
+            self.check_row(
+                self.api.public_api_single_feedback(row["key"]),
+                "feedback",
+                row,
+            )
 
     def check_person(self, key):
         person = self.people[key]
-        self.check_row(self.api.public_api_single_person(key),
-                       "person", person)
+        self.check_row(
+            self.api.public_api_single_person(key), "person", person
+        )
         platform = person["platform"]
         self.check_list(
             self.api.public_api_search_person(platform=platform),
-            [row for row in self.people.values()
-             if row["platform"] == platform], item="person",
+            [
+                row
+                for row in self.people.values()
+                if row["platform"] == platform
+            ],
+            item="person",
         )
 
     def check_messages(self, person):
-        rows = [row for row in self.messages.values()
-                if row["person"] == person]
-        self.check_list(self.api.public_api_search_message(person, tags=""),
-                        rows, item="message")
+        rows = [
+            row for row in self.messages.values() if row["person"] == person
+        ]
+        self.check_list(
+            self.api.public_api_search_message(person, tags=""),
+            rows,
+            item="message",
+        )
         for row in rows:
-            self.check_row(self.api.public_api_single_message(row["key"]),
-                           "message", row)
+            self.check_row(
+                self.api.public_api_single_message(row["key"]), "message", row
+            )
 
     def check_report(self):
         projected = {
@@ -169,8 +196,12 @@ class ApiModel(RuleBasedStateMachine):
         }
         self.check_list(
             self.api.public_api_search_report(),
-            [dict(data=data, platform=platform)
-             for data, platform in projected], "report", "row",
+            [
+                dict(data=data, platform=platform)
+                for data, platform in projected
+            ],
+            "report",
+            "row",
         )
 
     def delete_message(self, key):
@@ -267,15 +298,17 @@ class ApiModel(RuleBasedStateMachine):
 
     def submit_pending(self, person, data):
         status, root = self.api.public_api_new_message(
-            person=person, data=data,
+            person=person,
+            data=data,
         )
         assert (status, root.tag) == (OK, "message")
-        assert root.findtext("done") == "0"
+        assert root.findtext("done") == str(PENDING_TIMESTAMP)
         return int(root.findtext("key"))
 
     def cancel(self, key):
-        self.check_row(self.api.public_api_terminate_message(key),
-                       "message", {"key": key})
+        self.check_row(
+            self.api.public_api_terminate_message(key), "message", {"key": key}
+        )
         assert self.api.public_api_single_message(key)[0] == MISSING
         self.check_list(self.api.public_api_search_feedback(key), [])
 
@@ -288,15 +321,25 @@ class ApiModel(RuleBasedStateMachine):
             self.api.public_api_new_message(person=-1, data="[1]"),
             self.api.public_api_new_message(person=-1),
             self.api.public_api_search_person(unknown="field"),
-            self.api.public_api_search_person(datetime=2 ** 63),
+            self.api.public_api_search_person(datetime=2**63),
             self.api.request("POST", "search/person", "wrong", {}),
             self.api.request("POST", "search/person"),
             self.api.request("GET", "single/person"),
             self.api.request("GET", "single/person/1/2"),
             self.api.request("GET", "unknown/person"),
         ]
-        statuses = [BAD, MISSING, BAD, BAD, BAD, BAD, BAD, BAD,
-                    MISSING, MISSING]
+        statuses = [
+            BAD,
+            MISSING,
+            BAD,
+            BAD,
+            BAD,
+            BAD,
+            BAD,
+            BAD,
+            MISSING,
+            MISSING,
+        ]
         assert [(status, xml.tag) for status, xml in invalid] == [
             (status, "error") for status in statuses
         ]
@@ -324,6 +367,8 @@ def sorted_fields(row):
 
 TestFileApi = ApiModel.TestCase
 TestFileApi.settings = settings(
-    max_examples=30, stateful_step_count=14, deadline=None,
+    max_examples=30,
+    stateful_step_count=14,
+    deadline=None,
     derandomize=True,
 )

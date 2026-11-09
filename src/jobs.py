@@ -6,7 +6,6 @@ from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
 
-
 PENDING = 0
 WORKER_TIMEOUT = 10
 PROJECT = Path(__file__).resolve().parent.parent
@@ -19,8 +18,12 @@ def compute(data, test_mode):
     try:
         result = subprocess.run(
             [sys.executable, "-m", "src.calculator"],
-            cwd=PROJECT, input=data, encoding="utf-8",
-            capture_output=True, timeout=WORKER_TIMEOUT, check=False,
+            cwd=PROJECT,
+            input=data,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=WORKER_TIMEOUT,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return "", "calculation timed out"
@@ -73,8 +76,12 @@ class Jobs:
         response, failure = compute(row["data"], self.test_mode)
         with self.lock:
             if self.storage.get("message", key) is not None:
-                self.storage.finish_message(key, {
-                    "datetime": self.clock(), "response": response,
-                    "status": "failure" if failure else "success",
-                    "failure": failure,
-                })
+                self.storage.finish_message(
+                    key,
+                    {
+                        "datetime": self.clock(),
+                        "response": response,
+                        "status": "failure" if failure else "success",
+                        "failure": failure,
+                    },
+                )

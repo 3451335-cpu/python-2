@@ -5,12 +5,12 @@ import hashlib
 import json
 import sys
 
-
 ALGORITHM = "PBKDF2-HMAC-SHA256"
 DIGEST_BYTES = 32
 MAX_FILE_BYTES = 1024 * 1024
 MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_SALT_BYTES = 64
+MIN_ITERATIONS = 1
 MAX_ITERATIONS = 2_000_000
 FIELDS = {"file_b64", "salt_b64", "iterations"}
 
@@ -36,13 +36,24 @@ def calculate(task):
         raise ValueError("file exceeds 1 MiB")
     if not salt or len(salt) > MAX_SALT_BYTES:
         raise ValueError("salt must contain 1 to 64 bytes")
-    if type(iterations) is not int or not 1 <= iterations <= MAX_ITERATIONS:
+    if (
+        type(iterations) is not int
+        or not MIN_ITERATIONS <= iterations <= MAX_ITERATIONS
+    ):
         raise ValueError("iterations must be an integer in [1, 2000000]")
     digest = hashlib.pbkdf2_hmac(
-        "sha256", file_bytes, salt, iterations, dklen=DIGEST_BYTES,
+        "sha256",
+        file_bytes,
+        salt,
+        iterations,
+        dklen=DIGEST_BYTES,
     )
-    return dict(algorithm=ALGORITHM, iterations=iterations,
-                dklen=DIGEST_BYTES, digest=digest.hex())
+    return dict(
+        algorithm=ALGORITHM,
+        iterations=iterations,
+        dklen=DIGEST_BYTES,
+        digest=digest.hex(),
+    )
 
 
 def main():

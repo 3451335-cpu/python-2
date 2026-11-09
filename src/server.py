@@ -10,11 +10,16 @@ from threading import Lock
 from urllib.parse import parse_qs, urlsplit
 from xml.etree.ElementTree import ParseError
 
-from .jobs import Jobs, PENDING
-from .protocol import CREATE, FIELDS, MAX_BODY, as_integer, encode_xml
-from .protocol import xml_fields
+from .jobs import PENDING, Jobs
+from .protocol import (
+    CREATE,
+    FIELDS,
+    MAX_BODY,
+    as_integer,
+    encode_xml,
+    xml_fields,
+)
 from .storage import FileStorage
-
 
 REPORT_WINDOW = 8 * 60
 PREFIX = "/public/api/"
@@ -22,6 +27,8 @@ UNAUTHORIZED = HTTPStatus.UNAUTHORIZED
 NOT_FOUND = HTTPStatus.NOT_FOUND
 UNSCOPED_PARTS = 2
 SCOPED_PARTS = 3
+MIN_BODY_BYTES = 1
+EXPECTED_KEY_COUNT = 1
 ROUTES = {
     ("POST", "new", "person", False): "create",
     ("DELETE", "terminate", "person", True): "terminate",
@@ -71,7 +78,7 @@ def route(method, path):
     """Resolve a method and path according to table 30."""
     if not path.startswith(PREFIX):
         raise ApiError(NOT_FOUND, "route not found")
-    parts = path[len(PREFIX):].split("/")
+    parts = path[len(PREFIX) :].split("/")
     if len(parts) not in (UNSCOPED_PARTS, SCOPED_PARTS):
         raise ApiError(NOT_FOUND, "route not found")
     action, entity, *tail = parts
@@ -83,18 +90,19 @@ def route(method, path):
 
 def required(values, fields):
     if not fields <= values.keys():
-        raise ValueError("missing fields: " + ", ".join(
-            sorted(fields - values.keys())
-        ))
+        raise ValueError(
+            "missing fields: " + ", ".join(sorted(fields - values.keys()))
+        )
 
 
 class Handler(BaseHTTPRequestHandler):
-    """Dispatch XML requests to the configured data storage."""
+    """Dispatch XML requests through the standard-library do_METHOD hooks."""
 
     def dispatch(self):
         try:
-            if not authorized(self.headers.get("Authorization", ""),
-                              self.server.expected):
+            if not authorized(
+                self.headers.get("Authorization", ""), self.server.expected
+            ):
                 raise ApiError(UNAUTHORIZED, "valid credentials required")
             url = urlsplit(self.path)
             operation, entity, key = route(self.command, url.path)
@@ -103,8 +111,9 @@ class Handler(BaseHTTPRequestHandler):
         except ApiError as error:
             self.reply(error.status, "error", {"message": str(error)})
         except (ValueError, ParseError) as error:
-            self.reply(HTTPStatus.BAD_REQUEST, "error",
-                       {"message": str(error)})
+            self.reply(
+                HTTPStatus.BAD_REQUEST, "error", {"message": str(error)}
+            )
         else:
             self.reply(HTTPStatus.OK, tag, rows)
 
@@ -116,8 +125,9 @@ class Handler(BaseHTTPRequestHandler):
         body = encode_xml(tag, rows)
         self.send_response(status)
         if status == UNAUTHORIZED:
-            self.send_header("WWW-Authenticate",
-                             'Basic realm="Variant 30", charset="UTF-8"')
+            self.send_header(
+                "WWW-Authenticate", 'Basic realm="Variant 30", charset="UTF-8"'
+            )
         self.send_header("Content-Type", "application/xml; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -125,7 +135,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def read_fields(self, tag, fields):
         length = int(self.headers.get("Content-Length", "0"))
-        if not 0 < length <= MAX_BODY:
+        if not MIN_BODY_BYTES <= length <= MAX_BODY:
             raise ValueError("invalid XML body length")
         return xml_fields(self.rfile.read(length), tag, fields)
 
@@ -168,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
     def single(self, entity, key, query):
         params = parse_qs(query, keep_blank_values=True, strict_parsing=True)
         keys = params.get("key", [])
-        if set(params) != {"key"} or len(keys) != 1:
+        if set(params) != {"key"} or len(keys) != EXPECTED_KEY_COUNT:
             raise ValueError("expected exactly one key query parameter")
         return entity, self.find(entity, as_integer(keys[0]))
 
@@ -206,8 +216,9 @@ def arguments():
     parser.add_argument("password")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--storage", choices=("sqlite", "file"),
-                        default="sqlite")
+    parser.add_argument(
+        "--storage", choices=("sqlite", "file"), default="sqlite"
+    )
     parser.add_argument("--db")
     parser.add_argument("--test-mode", action="store_true")
     args = parser.parse_args()
@@ -229,10 +240,13 @@ def main():
     storage = open_storage(args)
     try:
         auth = credentials(args.username, args.password)
-        with ApiServer((args.host, args.port), auth, storage,
-                       args.test_mode) as server:
-            print(f"Listening on http://{args.host}:{server.server_port}",
-                  flush=True)
+        with ApiServer(
+            (args.host, args.port), auth, storage, args.test_mode
+        ) as server:
+            print(
+                f"Listening on http://{args.host}:{server.server_port}",
+                flush=True,
+            )
             server.serve_forever()
     except KeyboardInterrupt:
         pass

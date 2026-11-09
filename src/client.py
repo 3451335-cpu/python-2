@@ -49,18 +49,22 @@ class ApiClient:
         return self.request("DELETE", f"terminate/message/{key}")
 
     def public_api_search_message(self, person, **filters):
-        return self.request("POST", f"search/message/{person}",
-                            "search", filters)
+        return self.request(
+            "POST", f"search/message/{person}", "search", filters
+        )
 
     def public_api_single_message(self, key):
         return self.request("GET", "single/message?" + urlencode({"key": key}))
 
     def public_api_search_feedback(self, message, **filters):
-        return self.request("POST", f"search/feedback/{message}",
-                            "search", filters)
+        return self.request(
+            "POST", f"search/feedback/{message}", "search", filters
+        )
 
     def public_api_single_feedback(self, key):
-        return self.request("GET", "single/feedback?" + urlencode({"key": key}))
+        return self.request(
+            "GET", "single/feedback?" + urlencode({"key": key})
+        )
 
     def public_api_search_report(self):
         return self.request("POST", "search/report")

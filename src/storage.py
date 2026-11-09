@@ -3,7 +3,6 @@
 import shelve
 from dbm import dumb
 
-
 PARENT = {"message": "person", "feedback": "message"}
 
 
@@ -70,5 +69,7 @@ class FileStorage:
             for row in self.search("message", {})
             if row["datetime"] > cutoff
         }
-        return [dict(data=data, platform=platform)
-                for data, platform in sorted(pairs)]
+        return [
+            dict(data=data, platform=platform)
+            for data, platform in sorted(pairs)
+        ]
